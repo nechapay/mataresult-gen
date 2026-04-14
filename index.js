@@ -14,7 +14,7 @@ const results = [
   'развитие умения формулировать и удерживать учебную задачу, применять установленные правила в работе.'
 ]
 
-const PROBABILITY = 50
+const PROBABILITY = 40
 
 const subjects = {
   '5кл': {
@@ -25,7 +25,7 @@ const subjects = {
       { name: 'Второй иностранный язык (французский)', letters: ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж'] },
       { name: 'География', letters: ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж'] },
       { name: 'Изобразительное искусство ', letters: ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж'] },
-      { name: 'Иностранный язык  (английский)', letters: ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж'] },
+      { name: 'Иностранный язык (английский)', letters: ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж'] },
       { name: 'История', letters: ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж'] },
       { name: 'Литература', letters: ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж'] },
       { name: 'Математика', letters: ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж'] },
@@ -150,31 +150,65 @@ const subjects = {
     ]
   },
   '11кл': {
-    list: []
+    list: [
+      { name: 'Базовая физическая подготовка', letters: ['А', 'Б', 'Г', 'Д', 'Е', 'Ж'] },
+      { name: 'Биология', letters: ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж'] },
+      { name: 'Военное страноведение (английский язык)', letters: ['А', 'Б'] },
+      { name: 'География', letters: ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж'] },
+      { name: 'Глобальная география', letters: ['В'] },
+      { name: 'Иностранный язык (английский)', letters: ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж'] },
+      { name: 'Информатика', letters: ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж'] },
+      { name: 'История', letters: ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж'] },
+      { name: 'Литература', letters: ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж'] },
+      { name: 'Математика', letters: ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж'] },
+      { name: 'Обществознание', letters: ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж'] },
+      { name: 'Основы безопасности и защиты Родины', letters: ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж'] },
+      { name: 'Основы военной подготовки', letters: ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж'] },
+      { name: 'Основы генетики', letters: ['Г'] },
+      { name: 'Основы фармакологии', letters: ['Г'] },
+      { name: 'Основы экономики', letters: ['А', 'Б'] },
+      { name: 'Русский язык', letters: ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж'] },
+      { name: 'Уравнения и неравенства с параметрами', letters: ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж'] },
+      { name: 'Физика', letters: ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж'] },
+      { name: 'Физическая культура', letters: ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж'] },
+      { name: 'Химия', letters: ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж'] }
+    ]
   }
 }
 
-async function createExcel() {
-  const data = await readListOfStudents('списки.xlsx')
+async function createExcel(fileName) {
+  const data = await readListOfStudents(fileName)
   data.forEach((item) => {
     Object.keys(item).forEach((key) => {
-      createExcelFile(item, key)
+      const course = key.split('')[0]
+      subjects[course + 'кл'].list.forEach(async (subject) => {
+        let name = subject.name.split(' ').join('_')
+        let path = `./${course}кл/${name}`
+        await fs.mkdir(path, { recursive: true })
+        createExcelFile(item, key, path, subject.letters, subject.name)
+      })
     })
   })
 }
 
-async function createExcelFile(item, key) {
+async function createExcelFile(item, key, path, letters, subject) {
   const workbook = new ExcelJS.Workbook()
   const worksheet = workbook.addWorksheet(key)
   const offset = 4
-  console.log(key)
-  worksheet.getCell('B1').value = 'Уровень освоения планируемых метапредметных результатов {предмет}'
+
+  worksheet.getCell('B1').value = `Уровень освоения планируемых метапредметных результатов: ${subject}`
   worksheet.getCell('B2').value = 'ФИО преподавателя: {преподаватель}'
   worksheet.getRow(offset).values = ['П/н', 'Фамилия, имя, отчество', 'итог']
 
+  const course = key.split('')[0]
+  const letter = key.split('')[1]
+
   item[key].forEach((student, index) => {
     const sheetName = createResultsSheet(workbook, index + 1, results)
-    let formula = `ROUND(AVERAGE('${sheetName}'!C3:'${sheetName}'!C12)*100,0)`
+    let formula =
+      letters.indexOf(letter) !== -1
+        ? { formula: `ROUND(AVERAGE('${sheetName}'!C3:'${sheetName}'!C${results.length + 2})*100,0)` }
+        : ''
     const link = '#' + sheetName + '!A1'
     worksheet.addRow([
       {
@@ -182,7 +216,7 @@ async function createExcelFile(item, key) {
         hyperlink: link
       },
       student,
-      { formula: formula }
+      formula
     ])
     let cell = worksheet.getCell(index + offset + 1, 1)
     cell.font = {
@@ -213,7 +247,7 @@ async function createExcelFile(item, key) {
   worksheet.eachRow((row) => {
     row.font = defaultFont
   })
-  await workbook.xlsx.writeFile(key + '.xlsx')
+  await workbook.xlsx.writeFile(path + '/' + key + '.xlsx')
 }
 
 function createResultsSheet(wb, name, data) {
@@ -288,8 +322,6 @@ async function readListOfStudents(path) {
   return data
 }
 
-createExcel()
-
 function applyGridBorders(worksheet, startRow, startCol, endRow, endCol, options = {}) {
   const { outerStyle = 'thick', innerStyle = 'thin', outerColor = '000000', innerColor = '808080' } = options
 
@@ -314,3 +346,5 @@ function applyGridBorders(worksheet, startRow, startCol, endRow, endCol, options
 function getRandomInt(min, max) {
   return Math.floor(Math.random() * (max - min)) + min
 }
+
+createExcel('списки.xlsx')
