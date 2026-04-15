@@ -180,11 +180,14 @@ async function createExcel(fileName) {
   const data = await readListOfStudents(fileName)
   data.forEach((item) => {
     Object.keys(item).forEach((key) => {
-      const course = key.split('')[0]
+      let course = ''
+      if (key.length === 2) course = key.split('')[0]
+      else course = `${key.split('')[0]}${key.split('')[1]}`
       subjects[course + 'кл'].list.forEach(async (subject) => {
         let name = subject.name.split(' ').join('_')
         let path = `./${course}кл/${name}`
         await fs.mkdir(path, { recursive: true })
+        console.log(`folder ${path} created!`)
         createExcelFile(item, key, path, subject.letters, subject.name)
       })
     })
@@ -200,8 +203,7 @@ async function createExcelFile(item, key, path, letters, subject) {
   worksheet.getCell('B2').value = 'ФИО преподавателя: {преподаватель}'
   worksheet.getRow(offset).values = ['П/н', 'Фамилия, имя, отчество', 'итог']
 
-  const course = key.split('')[0]
-  const letter = key.split('')[1]
+  const letter = key.split('')[key.length - 1]
 
   item[key].forEach((student, index) => {
     const sheetName = createResultsSheet(workbook, index + 1, results)
@@ -248,6 +250,7 @@ async function createExcelFile(item, key, path, letters, subject) {
     row.font = defaultFont
   })
   await workbook.xlsx.writeFile(path + '/' + key + '.xlsx')
+  console.log(`file ${path}/${key}.xlsx created!`)
 }
 
 function createResultsSheet(wb, name, data) {
