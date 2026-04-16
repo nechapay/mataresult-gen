@@ -179,78 +179,85 @@ const subjects = {
 async function createExcel(fileName) {
   const data = await readListOfStudents(fileName)
   data.forEach((item) => {
-    Object.keys(item).forEach((key) => {
+    Object.keys(item).forEach(async (key) => {
       let course = ''
       if (key.length === 2) course = key.split('')[0]
       else course = `${key.split('')[0]}${key.split('')[1]}`
-      subjects[course + 'кл'].list.forEach(async (subject) => {
-        let name = subject.name.split(' ').join('_')
-        let path = `./${course}кл/${name}`
-        await fs.mkdir(path, { recursive: true })
-        console.log(`folder ${path} created!`)
-        createExcelFile(item, key, path, subject.letters, subject.name)
-      })
+      await createExcelFile(item, key, course)
     })
   })
 }
 
-async function createExcelFile(item, key, path, letters, subject) {
-  const workbook = new ExcelJS.Workbook()
-  const worksheet = workbook.addWorksheet(key)
-  const offset = 4
+async function createExcelFile(item, key, course) {
+  subjects[course + 'кл'].list.forEach(async (subject) => {
+    let name = subject.name.split(' ').join('_')
+    let path = `./${course}кл/${name}`
+    await fs.mkdir(path, { recursive: true })
+    const letters = subject.letters
+    console.log(`folder ${path} created!`)
 
-  worksheet.getCell('B1').value = `Уровень освоения планируемых метапредметных результатов: ${subject}`
-  worksheet.getCell('B2').value = 'ФИО преподавателя: {преподаватель}'
-  worksheet.getRow(offset).values = ['П/н', 'Фамилия, имя, отчество', 'итог']
+    const workbook = new ExcelJS.Workbook()
+    const worksheet = workbook.addWorksheet(key)
+    const offset = 4
 
-  const letter = key.split('')[key.length - 1]
+    worksheet.getCell('B1').value = `Уровень освоения планируемых метапредметных результатов: ${subject.name}`
+    worksheet.getCell('B2').value = 'ФИО преподавателя: {преподаватель}'
+    worksheet.getRow(offset).values = ['П/н', 'Фамилия, имя, отчество', 'итог']
 
-  item[key].forEach((student, index) => {
-    const sheetName = createResultsSheet(workbook, index + 1, results)
-    let formula =
-      letters.indexOf(letter) !== -1
-        ? { formula: `ROUND(AVERAGE('${sheetName}'!C3:'${sheetName}'!C${results.length + 2})*100,0)` }
-        : ''
-    const link = '#' + sheetName + '!A1'
-    worksheet.addRow([
-      {
-        text: index + 1,
-        hyperlink: link
-      },
-      student,
-      formula
-    ])
-    let cell = worksheet.getCell(index + offset + 1, 1)
-    cell.font = {
-      color: { argb: 'FF00F0FF' },
-      underline: true
+    const letter = key.split('')[key.length - 1]
+
+    item[key].forEach((student, index) => {
+      const sheetName = createResultsSheet(workbook, index + 1, results)
+      let formula =
+        letters.indexOf(letter) !== -1
+          ? { formula: `ROUND(AVERAGE('${sheetName}'!C3:'${sheetName}'!C${results.length + 2})*100,0)` }
+          : ''
+      if (student.lang == 'de' && subject.name == 'Второй иностранный язык (французский)') formula = ''
+      if (student.lang == 'fr' && subject.name == 'Второй иностранный язык (немецкий)') formula = ''
+      if (student.lang == 'de' && subject.name == 'Разговорный французский') formula = ''
+      if (student.lang == 'fr' && subject.name == 'Разговорный немецкий') formula = ''
+
+      const link = '#' + sheetName + '!A1'
+      worksheet.addRow([
+        {
+          text: index + 1,
+          hyperlink: link
+        },
+        student.name,
+        formula
+      ])
+      let cell = worksheet.getCell(index + offset + 1, 1)
+      cell.font = {
+        color: { argb: 'FF00F0FF' },
+        underline: true
+      }
+      cell.numFmt = 0
+    })
+
+    const headerRow = worksheet.getRow(offset)
+    headerRow.height = 35
+    headerRow.font = { bold: false, size: 11 }
+    headerRow.alignment = { vertical: 'middle', horizontal: 'center' }
+    worksheet.getColumn(2).width = 45
+    const firstColumn = worksheet.getColumn(1)
+    firstColumn.alignment = { horizontal: 'right' }
+    applyGridBorders(worksheet, offset, 1, item[key].length + offset, 3, {
+      outerStyle: 'thin',
+      innerStyle: 'thin',
+      outerColor: '000000',
+      innerColor: '000000'
+    })
+    const defaultFont = {
+      name: 'Times New Roman',
+      size: 11,
+      color: { argb: 'FF000000' } // черный
     }
-    cell.numFmt = 0
+    worksheet.eachRow((row) => {
+      row.font = defaultFont
+    })
+    await workbook.xlsx.writeFile(path + '/' + key + '.xlsx')
+    console.log(`file ${path}/${key}.xlsx created!`)
   })
-
-  const headerRow = worksheet.getRow(offset)
-  headerRow.height = 35
-  headerRow.font = { bold: false, size: 11 }
-  headerRow.alignment = { vertical: 'middle', horizontal: 'center' }
-  worksheet.getColumn(2).width = 45
-  const firstColumn = worksheet.getColumn(1)
-  firstColumn.alignment = { horizontal: 'right' }
-  applyGridBorders(worksheet, offset, 1, item[key].length + offset, 3, {
-    outerStyle: 'thin',
-    innerStyle: 'thin',
-    outerColor: '000000',
-    innerColor: '000000'
-  })
-  const defaultFont = {
-    name: 'Times New Roman',
-    size: 11,
-    color: { argb: 'FF000000' } // черный
-  }
-  worksheet.eachRow((row) => {
-    row.font = defaultFont
-  })
-  await workbook.xlsx.writeFile(path + '/' + key + '.xlsx')
-  console.log(`file ${path}/${key}.xlsx created!`)
 }
 
 function createResultsSheet(wb, name, data) {
@@ -315,9 +322,18 @@ async function readListOfStudents(path) {
     obj[course] = []
 
     worksheet.eachRow((row) => {
+      let name = ''
+      let lang = ''
       row.eachCell((cell, colNumber) => {
-        if (colNumber === 1) obj[course].push(cell.value)
+        if (colNumber == 1) name = cell.value
+        if (colNumber == 2) lang = cell.value
       })
+      console.log(name, lang)
+      if (name !== '') obj[course].push({ name: name, lang: lang })
+
+      // row.eachCell((cell, colNumber) => {
+      //   if (colNumber === 1) obj[course].push(cell.value)
+      // })
     })
 
     data.push(obj)
